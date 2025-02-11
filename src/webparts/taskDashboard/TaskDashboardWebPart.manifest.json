@@ -1,0 +1,22 @@
+{
+  "$schema": "https://dev.office.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "d7602184-03d9-4f94-89eb-ac8afaa70a67",
+  "alias": "TaskDashboardWebPart",
+  "componentType": "WebPart",
+
+  "version": "*",
+  "manifestVersion": 2,
+  
+  "requiresCustomScript": false,
+
+  "preconfiguredEntries": [{
+    "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+    "group": { "default": "Other" },
+    "title": { "default": "Task Dashboard" },
+    "description": { "default": "Display task data in charts and data tables" },
+    "officeFabricIconFontName": "Page",
+    "properties": {
+      "description": "Task Dashboard"
+    }
+  }]
+}

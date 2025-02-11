@@ -1,0 +1,21 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "16.20.2",
+    "sdksVersions": {
+      "@microsoft/microsoft-graph-client": "3.0.2",
+      "@microsoft/teams-js": "2.24.0"
+    },
+    "version": "1.20.0",
+    "libraryName": "task-dashboard",
+    "libraryId": "fbc522fa-587f-458c-a335-f19ac4d4b83c",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "task-dashboard",
+    "solutionShortDescription": "task-dashboard description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
