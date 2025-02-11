@@ -1,257 +1,101 @@
-import { 
-  DisplayMode,
-  Environment,
-  EnvironmentType,
-  Version } from '@microsoft/sp-core-library';
-import {
-  BaseClientSideWebPart,
-  IPropertyPaneConfiguration,
-  PropertyPaneTextField
-} from '@microsoft/sp-webpart-base';
-import { escape } from '@microsoft/sp-lodash-subset';
-import { SPComponentLoader } from '@microsoft/sp-loader';
+/**
+ * SPFx Project Performance Dashboard
+ * Uses Plotly.js (latest version) for interactive visualizations.
+ */
 
-import styles from './TaskDashboardWebPart.module.scss';
-import * as strings from 'TaskDashboardWebPartStrings';
-import { ITasks } from '../../models/ITasks';
-import { TaskService } from '../../services/TaskService';
-import * as $ from 'jquery';
-require('datatables');
-require('bootstrap');
-import { Chart } from 'chart.js';
-import * as moment from 'moment';
+import * as React from 'react';
+import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
+import { ITaskDashboardProps } from './ITaskDashboardProps';
+// import Plotly from 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min';
+import * as Plotly from 'plotly.js-dist-min';
+import './TaskDashboard.module.css'; // Ensure this file exists in the project
 
-export interface ITaskDashboardWebPartProps {
-  description: string;
-  listName: string;
+interface IProjectDashboardState {
+  projectData: any[];
 }
 
-export default class TaskDashboardWebPart extends BaseClientSideWebPart<ITaskDashboardWebPartProps> {
-
-  private _taskListName : string = 'Tasks';
-  private _webUrl : string = '';
-  private _requestData : string[];
-  private _envType : string;
-  private _taskData: ITasks[];
-
-  private _backgroundColours: string[] = ['#ed7d31','#a074a6','#ffc000','#4472c4','#5b97d5','#FCE400','#F7931E','#39B54A','#df0007','#ffc000'];
-  private _pieChartConfig = {
-    type: 'pie',
-    data: {
-      labels: [],
-      datasets: [{
-          label: '',
-          data: [],
-          backgroundColor: this._backgroundColours
-      }]
-    },
-    options: {
-      responsive: true
-    }
-  };
-  
-  private _barChartConfig = {
-    type: 'bar',
-    data: {
-      labels: [],
-      datasets: [{
-        label: '',
-        data: [],
-        backgroundColor: this._backgroundColours
-      }]
-    },
-    options: {
-      legend: {
-        display: false
-      },
-      scales: {
-        yAxes: [{
-          ticks: {
-            beginAtZero:true
-          }
-        }]
-      },
-      responsive: true
-    }
-  };
-
-  protected onInit(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      console.log('in OnInit');
-      if (this.properties.listName != "")
-        this._taskListName = this.properties.listName;
-
-      this._envType = Environment.type == EnvironmentType.Local ? 'local' : 'server';
-      this._webUrl = this.context.pageContext.web.absoluteUrl;
-      // load css for datatables
-      SPComponentLoader.loadCss('https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css');
-      SPComponentLoader.loadCss('https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css');
-      
-      resolve();
-    });
+export default class ProjectDashboard extends React.Component<ITaskDashboardProps, IProjectDashboardState> {
+  constructor(props: ITaskDashboardProps) {
+    super(props);
+    this.state = { projectData: [] };
   }
 
-  public render(): void {
-    this.domElement.innerHTML = `
-      <div class="col-xs-12 col-sm-12 col-md-6">
-        <div id="Chart1" class="panel panel-default">
-            <div class="panel-heading">By Priority</div>
-            <div class="panel-body" style="text-align: center;">
-              <canvas id="chart-area" height="200" class="chartjs-render-monitor" ></canvas>
-            </div>
-          </div>
-      </div>
-      <div class="col-xs-12 col-sm-12 col-md-6">
-        <div id="Chart2" class="panel panel-default">
-            <div class="panel-heading">By Status</div>
-            <div class="panel-body" style="text-align: center;">
-              <canvas id="chart-area2" height="200" class="chartjs-render-monitor" ></canvas>
-            </div>
-          </div>
-      </div>
-      <table id="taskTable" class="display ${styles.taskDashboard}" cellspacing="0" width="100%">
-        <thead>
-            <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Priority</th>
-                <th scope="col">Status</th>
-                <th scope="col">Start Date</th>
-                <th scope="col">Due Date</th>
-            </tr>
-        </thead>
-      </table>`;
-
-      // get task data
-      if (Environment.type == EnvironmentType.Local) {
-        console.log('local environment');
-        this._taskData = TaskService.getLocalTasks();
-        this.updateUI();
-      }
-      else {
-        console.log('server environment');
-        var reqUrl = this._webUrl + "/_api/web/Lists/GetByTitle('" + this._taskListName + "')/Items?$select=Id,Title,Priority,Status,Author/ID,Author/Title,Created,StartDate,DueDate&$expand=Author/ID,Author/Title&$orderby=Priority";
-        console.log(reqUrl);
-        var parent = this;
-        $.ajax({
-          url: reqUrl,
-          type: "GET",
-          headers: {
-            "accept": "application/json;odata=verbose",
-          },
-          success: function(data) {
-            console.log('success');
-            parent._taskData = data.d.results;
-            parent.updateUI();
-          }
-          ,
-          error: function(error){
-              console.log(JSON.stringify(error));
-          }
-        });
-      }
+  componentDidMount(): void {
+    this.fetchProjectData();
   }
 
-  public updateUI() {
+  fetchProjectData = async (): Promise<void> => {
+    const { context } = this.props;
+    const fileUrl: string = `${context.pageContext.web.absoluteUrl}/Shared Documents/PMO_Project_Data.json`;
+
     try {
-      console.log('in update table method');
-      let cTable: JQuery = $('#taskTable', this.domElement);
-      (cTable as any).DataTable({
-        data: this._taskData,
-        columns: [
-          {'data':'Title'},
-          {'data':'Priority'},
-          {'data':'Status'},
-          {'data':'StartDate',
-          'render': (data: any) => {
-              if (data != "" && data != null) {
-                return moment(data).format('YYYY/MM/DD');
-              }
-              else { return ''; }
-            }
-          },
-          {'data':'DueDate',
-          'render': (data: moment.MomentInput) => {
-              if (data != "" && data != null) {
-                return moment(data).format('YYYY/MM/DD');
-              }
-              else { return ''; }
-            }
-          }
-        ],
-        "order": [[1, 'asc']]
-      });
-
-      var occurences: any;
-      var result;
-      var sCount;
-      let ctx1: any = document.getElementById('chart-area');
-      // var chart1 = new Chart(ctx1, this._barChartConfig);
-      // occurences = this._taskData.reduce(function (r, row) {
-      //     r[row.Priority] = ++r[row.Priority] || 1;
-      //     return r;
-      //   }, {}
-      // );
-      
-      result = Object.keys(occurences).map(key => {
-        return { key: key, value: occurences[key] };
-      });
-      console.log('Priority: ' + result);
-      // for (sCount = 0; sCount < result.length; sCount++) {
-      //   this._barChartConfig.data.labels[sCount] = result[sCount].key;
-      //   this._barChartConfig.data.datasets[0].data[sCount] = result[sCount].value;
-      // }
-      // chart1.update();
-      
-      // let ctx2: any = document.getElementById('chart-area2');
-      // var chart2 = new Chart(ctx2, this._pieChartConfig);
-      
-      // occurences = this._taskData.reduce(function (r, row) {
-      //     r[row.Status] = ++r[row.Status] || 1;
-      //     return r;
-      //   }, {}
-      // );
-      // result = Object.keys(occurences).map(key => {
-      //   return { key: key, value: occurences[key] };
-      // });
-      // console.log('Status: ' + result);
-      // for (sCount = 0; sCount < result.length; sCount++) {
-      //   this._pieChartConfig.data.labels[sCount] = result[sCount].key;
-      //   this._pieChartConfig.data.datasets[0].data[sCount] = result[sCount].value;
-      // }
-      // chart2.update();
+      const response: SPHttpClientResponse = await context.spHttpClient.get(
+        fileUrl,
+        SPHttpClient.configurations.v1
+      );
+      const data: any[] = await response.json();
+      this.setState({ projectData: data });
+      this.createCharts(data);
+    } catch (error) {
+      console.error("Error fetching project data:", error);
     }
-    catch (err) {
-      console.error(err);
-    }
-    
-  }
+  };
 
-  protected get dataVersion(): Version {
-    return Version.parse('1.0');
-  }
+  createCharts = (data: any[]): void => {
+    if (!data || data.length === 0) return;
 
-  protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
-    return {
-      pages: [
-        {
-          header: {
-            description: strings.PropertyPaneDescription
-          },
-          groups: [
-            {
-              groupName: strings.BasicGroupName,
-              groupFields: [
-                PropertyPaneTextField('description', {
-                  label: strings.DescriptionFieldLabel
-                }),
-                PropertyPaneTextField('listName', {
-                  label: strings.ListNameFieldLabel
-                })
-              ]
-            }
-          ]
-        }
-      ]
-    };
-  }
+    // Pie Chart: Project Status Distribution
+    const statusCounts: { [key: string]: number } = data.reduce((acc, project) => {
+      acc[project["Project Status"]] = (acc[project["Project Status"]] || 0) + 1;
+      return acc;
+    }, {});
+    Plotly.newPlot("statusChart", [{
+      labels: Object.keys(statusCounts),
+      values: Object.values(statusCounts),
+      type: "pie"
+    }], { title: "Project Status Distribution" });
+
+    // Bar Chart: Budget vs. Actual Expenses
+    Plotly.newPlot("budgetChart", [{
+      x: data.map(p => p["Project Name"]),
+      y: data.map(p => p["Total Project Budget"]),
+      name: "Total Budget",
+      type: "bar"
+    }, {
+      x: data.map(p => p["Project Name"]),
+      y: data.map(p => p["Project Actual Expenses"]),
+      name: "Actual Expenses",
+      type: "bar"
+    }], { title: "Budget vs. Actual Expenses", barmode: "group" });
+
+    // Spline Chart: Project Progress Overview
+    Plotly.newPlot("progressChart", [{
+      x: data.map(p => p["Project Name"]),
+      y: data.map(p => p["Project Progress"]),
+      type: "scatter",
+      mode: "lines+markers"
+    }], { title: "Project Progress Overview" });
+
+    // Histogram: Forecast vs. Previous Year Spending
+    Plotly.newPlot("forecastChart", [{
+      x: data.map(p => p["Next Years Forecast"]).filter(Boolean),
+      type: "histogram",
+      name: "Next Year’s Forecast"
+    }, {
+      x: data.map(p => p["Previous Year VOW"]).filter(Boolean),
+      type: "histogram",
+      name: "Previous Year Spending"
+    }], { title: "Forecast vs. Previous Year Spending" });
+  };
+
+  // render(): React.ReactElement {
+  //   return (
+  //     <div className="dashboardContainer">
+  //       <div id="statusChart" className="chart"></div>
+  //       <div id="budgetChart" className="chart"></div>
+  //       <div id="progressChart" className="chart"></div>
+  //       <div id="forecastChart" className="chart"></div>
+  //     </div>
+  //   );
+  // }
 }
