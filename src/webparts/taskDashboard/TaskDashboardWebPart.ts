@@ -42,8 +42,20 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
           <div id="forecastChart" class="${styles.chart}"></div>
         </div>
       </div>
+
       <div class="${styles.title}">
         <h1 class="${styles.center}">Project Management Data Table</h1>
+
+        <!-- Search Filter -->
+        <div class="${styles.filterContainer}">
+          <input 
+            type="text" 
+            id="searchInput"
+            placeholder="Search projects..." 
+            class="${styles.filterInput}"
+          />
+        </div>
+
         <div class="${styles.tableContainer}">
           <table class="${styles.dataTable}">
             <thead>
@@ -62,12 +74,19 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
           </table>
         </div>
       </div>
-      </div>
-`;
+    </div>
+  `;
+
 
     this.fetchTaskInfo();
+
+    // Add event listener for filtering
+    document.getElementById("searchInput")?.addEventListener("input", () => {
+      this.filterTable();
+    });
   }
 
+  private allProjects: any[] = []; // Store all projects for filtering
 
   private async fetchTaskInfo(): Promise<void> {
     const currentToken = sessionStorage.getItem(this.tokenKey);
@@ -224,6 +243,8 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
   }
 
   private populateTable(data: any[]): void {
+    this.allProjects = data; // Store full dataset for filtering
+    
     if (!data || data.length === 0) {
       const tableElement = document.getElementById('projectTableBody');
       if (tableElement) {
@@ -232,22 +253,35 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
       return;
     }
 
+    this.renderTable(data);
+  }
+
+  private renderTable(data: any[]): void {
     const tableBody = data.map(project => `
-        <tr>
-            <td>${project["Project Name"]}</td>
-            <td>${project["Project Status"]}</td>
-            <td>${project["Total Project Budget"].toLocaleString()}</td>
-            <td>${project["Project Actual Expenses"].toLocaleString()}</td>
-            <td>${project["Project Remaining Budget"].toLocaleString()}</td>
-            <td>${project["Project Progress"]}%</td>
-        </tr>
-        `).join('');
+    <tr>
+      <td>${project["Project Name"]}</td>
+      <td>${project["Project Status"]}</td>
+      <td>${project["Total Project Budget"].toLocaleString()}</td>
+      <td>${project["Project Actual Expenses"].toLocaleString()}</td>
+      <td>${project["Project Remaining Budget"].toLocaleString()}</td>
+      <td>${project["Project Progress"]}%</td>
+    </tr>
+  `).join('');
 
     const tableElement = document.getElementById('projectTableBody');
     if (tableElement) {
       tableElement.innerHTML = tableBody;
     }
+  }
 
+  private filterTable(): void {
+    const searchValue = (document.getElementById("searchInput") as HTMLInputElement)?.value.toLowerCase();
+    const filteredData = this.allProjects.filter(project =>
+      project["Project Name"].toLowerCase().includes(searchValue) ||
+      project["Project Status"].toLowerCase().includes(searchValue)
+    );
+
+    this.renderTable(filteredData);
   }
 
   private createCharts(): void {
