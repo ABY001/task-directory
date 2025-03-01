@@ -20,6 +20,7 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
   private tokenKey: string = "lawrence_task_token";
   private siteId: string = "stlawrenceparks.sharepoint.com,98a66bd0-a2ff-4c2b-9689-12f07bd3d278,d83bd597-b716-4290-b679-392487cea472";
   private driveId: string = "b!0GummP-iK0yWiRLwe9PSeJfVO9gWt5BCtnk5JIfOpHLtrW_mggf8RLP2xJHL9wv6";
+  // private filePath: string = "Dashboard/Test.csv";
   private filePath: string = "Dashboard/PMO%20Project%20Budget%20Report.csv";
   private fileUrl = `https://graph.microsoft.com/v1.0/sites/${this.siteId}/drives/${this.driveId}/root:/${this.filePath}`;
   private tenantId: string = "945ebcd8-21be-4de8-9ca5-b23933913427";
@@ -230,21 +231,29 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
   }
 
   private parseCSV(csvText: string): any[] {
-    const rows = csvText.split("\r\n").filter(row => row.trim() !== ""); // Split by line and remove empty lines
-    const headers = rows[0].split(",").map(header => header.replace(/"/g, "").trim()); // Extract headers
+    const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== ""); // Handles different OS line endings
+    const headers = this.parseCSVRow(rows[0]); // Extract headers correctly
 
     return rows.slice(1).map(row => {
-      const values = row.split(",").map(value => value.replace(/"/g, "").trim()); // Remove quotes and trim spaces
+      const values = this.parseCSVRow(row); // Parse each row correctly
       return headers.reduce((obj, header, index) => {
-        obj[header] = values[index] || null; // Assign values to headers
+        let value = values[index] !== undefined ? values[index].trim() : "N/A"; // Default empty cells to "N/A"
+        if (value === "") value = "N/A"; // Ensure empty strings become "N/A"
+        obj[header] = isNaN(Number(value)) ? value : Number(value); // Convert numbers, keep text as string
         return obj;
-      }, {} as Record<string, string | number | null>);
+      }, {} as Record<string, string | number>);
     });
+  }
+
+  // Helper function to correctly parse CSV rows (handles commas inside quotes)
+  private parseCSVRow(row: string): string[] {
+    const match = row.match(/(".*?"|[^",]+|(?<=,)(?=,)|(?<=,)$)/g); // Handles empty cells correctly
+    return match ? match.map(cell => cell.replace(/^"|"$/g, '')) : []; // Removes leading & trailing quotes
   }
 
   private populateTable(data: any[]): void {
     this.allProjects = data; // Store full dataset for filtering
-    
+
     if (!data || data.length === 0) {
       const tableElement = document.getElementById('projectTableBody');
       if (tableElement) {
@@ -261,10 +270,10 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
     <tr>
       <td>${project["Project Name"]}</td>
       <td>${project["Project Status"]}</td>
-      <td>${project["Total Project Budget"].toLocaleString()}</td>
-      <td>${project["Project Actual Expenses"].toLocaleString()}</td>
-      <td>${project["Project Remaining Budget"].toLocaleString()}</td>
-      <td>${project["Project Progress"]}%</td>
+      <td>${project["Total Project Budget"]?.toLocaleString()}</td>
+      <td>${project["Project Actual Expenses"]?.toLocaleString()}</td>
+      <td>${project["Project Remaining Budget"]?.toLocaleString()}</td>
+      <td>${project["Project Progress"]}</td>
     </tr>
   `).join('');
 
@@ -275,10 +284,10 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
   }
 
   private filterTable(): void {
-    const searchValue = (document.getElementById("searchInput") as HTMLInputElement)?.value.toLowerCase();
+    const searchValue = (document.getElementById("searchInput") as HTMLInputElement)?.value?.toLowerCase();
     const filteredData = this.allProjects.filter(project =>
-      project["Project Name"].toLowerCase().includes(searchValue) ||
-      project["Project Status"].toLowerCase().includes(searchValue)
+      project["Project Name"]?.toLowerCase().includes(searchValue) ||
+      project["Project Status"]?.toLowerCase().includes(searchValue)
     );
 
     this.renderTable(filteredData);
@@ -310,7 +319,7 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
       ],
       {
         title: {
-          text: "Pie Chart: Project Status Distribution",
+          text: "Project Status Distribution",
           font: { size: 16 },
           x: 0.5, // Center title
         },
@@ -336,7 +345,7 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
       ],
       {
         title: {
-          text: "Bar Chart: Budget vs. Actual Expenses",
+          text: "Budget vs. Actual Expenses",
           font: { size: 16 },
           x: 0.5,
         },
@@ -357,7 +366,7 @@ export default class TaskDashboardWebPart extends BaseClientSideWebPart<
       ],
       {
         title: {
-          text: "Spline Chart: Project Progress Overview",
+          text: "Project Progress Overview",
           font: { size: 16 },
           x: 0.5,
         },
